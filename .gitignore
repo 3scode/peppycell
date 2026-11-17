@@ -1,0 +1,46 @@
+# dependencies
+node_modules/
+.pnp
+.pnp.js
+
+# next
+.next/
+out/
+build/
+next-env.d.ts
+
+# env
+.env
+.env.local
+.env.*.local
+!.env.example
+
+# logs
+*.log
+npm-debug.log*
+bun-debug.log*
+
+# os
+.DS_Store
+Thumbs.db
+
+# laporan penjualan lokal (data asli, jangan dipublikasikan)
+excel/
+prd.md:Zone.Identifier
+
+# testing
+coverage/
+playwright-report/
+test-results/
+
+# capacitor / android
+android/.gradle/
+android/.idea/
+android/build/
+android/app/build/
+android/local.properties
+android/capacitor-cordova-android-plugins/
+dist/
+
+# typescript
+*.tsbuildinfo
