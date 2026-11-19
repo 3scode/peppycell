@@ -55,24 +55,25 @@ export default async function TransactionsPage({
   const q = one(params.q);
   const page = Number(one(params.page) ?? 1) || 1;
 
-  const result = await listTransactions(user, {
-    type: type && type !== "all" ? type : undefined,
-    from,
-    to,
-    walletId,
-    userId,
-    q,
-    page,
-    limit: 25,
-  });
+  const [result, wallets, voucherWallets, allUsers, allProducts] = await Promise.all([
+    listTransactions(user, {
+      type: type && type !== "all" ? type : undefined,
+      from,
+      to,
+      walletId,
+      userId,
+      q,
+      page,
+      limit: 25,
+    }),
+    listActiveWalletsForTransactions(user),
+    user.role === "admin" ? listWalletOptions(user) : Promise.resolve([]),
+    user.role === "admin" ? listUsers(user) : Promise.resolve([]),
+    user.role === "admin" ? listProducts(user, { limit: 100, includeCosts: false }) : Promise.resolve({ rows: [] }),
+  ]);
 
-  const wallets = await listActiveWalletsForTransactions(user);
-  const voucherWallets = user.role === "admin" ? await listWalletOptions(user) : [];
-  const users =
-    user.role === "admin" ? (await listUsers(user)).filter((u) => u.isActive && !u.deletedAt) : [];
-  const allProducts =
-    user.role === "admin" ? (await listProducts(user, { limit: 100 })).rows : [];
-  const productOptions = allProducts.map((product) => ({
+  const users = allUsers.filter((u) => u.isActive && !u.deletedAt);
+  const productOptions = allProducts.rows.map((product) => ({
     id: product.id,
     nama: product.nama,
     hargaJual: product.hargaJual,

@@ -47,7 +47,14 @@ export interface DataRepository {
 
   listProducts(
     user: SessionUser,
-    filters?: { q?: string; operator?: string; page?: number; limit?: number; archived?: boolean },
+    filters?: {
+      q?: string;
+      operator?: string;
+      page?: number;
+      limit?: number;
+      archived?: boolean;
+      includeCosts?: boolean;
+    },
   ): Promise<Paginated<Product>>;
   listAllProducts(
     user: SessionUser,
@@ -70,6 +77,8 @@ export interface DataRepository {
 
   updatePayoutSettings(user: SessionUser, input: PayoutSettings): Promise<PayoutSettings>;
   getPayoutSettings(): Promise<PayoutSettings>;
+  getCapital(user: SessionUser): Promise<number>;
+  updateCapital(user: SessionUser, amount: number): Promise<number>;
   previewPayout(
     user: SessionUser,
     start: string,
@@ -93,6 +102,7 @@ export interface DataRepository {
   ): Promise<PayoutRecord>;
 
   getDashboardMetrics(user: SessionUser, start?: string, end?: string): Promise<DashboardMetrics>;
+  getPeriodNetProfit(user: SessionUser, start: string, end: string): Promise<number>;
 
   listUsers(user: SessionUser): Promise<UserSummary[]>;
   createUser(

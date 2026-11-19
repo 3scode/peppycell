@@ -6,6 +6,7 @@ import { HandCoins } from "lucide-react";
 import type { SessionUser } from "@/types/domain";
 import { cn } from "@/lib/utils";
 import { NAV_BY_ROLE } from "@/components/layout/navigation";
+import { LinkPending } from "@/components/layout/link-pending";
 
 export function Sidebar({ user }: { user: SessionUser }) {
   const pathname = usePathname();
@@ -36,12 +37,13 @@ export function Sidebar({ user }: { user: SessionUser }) {
               aria-current={active ? "page" : undefined}
               title={item.label}
               className={cn(
-                "group flex min-h-11 items-center gap-3 rounded-sm px-3 text-sm font-medium transition-colors",
+                "group relative flex min-h-11 items-center gap-3 overflow-hidden rounded-sm px-3 text-sm font-medium transition-colors",
                 active
                   ? "bg-primary-soft text-primary"
                   : "text-foreground-muted hover:bg-surface-muted hover:text-foreground",
               )}
             >
+              <LinkPending />
               <Icon className="size-5 shrink-0" aria-hidden />
               <span className="hidden xl:inline">{item.label}</span>
               {active ? (

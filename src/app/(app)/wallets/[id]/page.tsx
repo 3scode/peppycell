@@ -61,10 +61,10 @@ export default async function WalletDetailPage({
   const isAdmin = user.role === "admin";
   const { id } = await params;
   const { tab } = await searchParams;
-  const data = await getWalletDetail(user, id);
+  const [data, walletList] = await Promise.all([getWalletDetail(user, id), listWallets(user)]);
   if (!data) notFound();
   const { wallet, transactions, adjustments, monthlyIn, monthlyOut } = data;
-  const activeWalletCount = (await listWallets(user)).wallets.filter((item) => item.isActive).length;
+  const activeWalletCount = walletList.wallets.filter((item) => item.isActive).length;
   const activeTab = isAdmin && tab === "audit" ? "audit" : "riwayat";
 
   return (

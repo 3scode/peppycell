@@ -38,9 +38,13 @@ export default async function ProductsPage({ searchParams }: { searchParams: Pro
     ? limitParam
     : DEFAULT_PAGE_SIZE;
 
-  const all = (await listProducts(user, { limit: 100, archived })).rows;
-  const operators = Array.from(new Set(all.map((product) => product.operator))).sort();
-  const result = await listProducts(user, { q, operator, page, limit, archived });
+  // Dua query katalog ini independen — jalankan bersamaan supaya tidak
+  // menumpuk dua round-trip ke Supabase.
+  const [allResult, result] = await Promise.all([
+    listProducts(user, { limit: 100, archived }),
+    listProducts(user, { q, operator, page, limit, archived }),
+  ]);
+  const operators = Array.from(new Set(allResult.rows.map((product) => product.operator))).sort();
   const priceHistory =
     user.role === "admin"
       ? await listProductPrices(result.rows.map((product) => product.id))

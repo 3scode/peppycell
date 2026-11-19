@@ -7,19 +7,23 @@ import {
   Palette,
   ShieldCheck,
   UserRound,
+  Wallet,
 } from "lucide-react";
 import { getSessionUser } from "@/lib/auth/session";
+import { getCapital } from "@/lib/data/repository";
 import { redirect } from "next/navigation";
 import { PageHeader } from "@/components/ui/page-header";
 import { Card } from "@/components/ui/card";
 import { RoleBadge } from "@/components/ui/status-badge";
 import { Alert } from "@/components/ui/alert";
+import { MoneyText } from "@/components/ui/money-text";
 import { AvatarUploader } from "@/components/settings/avatar-uploader";
 import { ProfileDialog } from "@/components/settings/profile-dialog";
 import { PasswordDialog } from "@/components/settings/password-dialog";
 import { ThemePreference } from "@/components/settings/theme-preference";
 import { NotificationPreference } from "@/components/settings/notification-preference";
 import { LogoutAllCard } from "@/components/settings/logout-all-card";
+import { CapitalDialog } from "@/components/settings/capital-dialog";
 
 export const metadata = { title: "Profil & Pengaturan" };
 
@@ -29,7 +33,7 @@ const roleLabel: Record<string, string> = {
   investor: "Investor",
 };
 
-const sections = [
+const baseSections = [
   { id: "akun", label: "Akun", icon: UserRound },
   { id: "keamanan", label: "Keamanan", icon: ShieldCheck },
   { id: "tampilan", label: "Tampilan", icon: Palette },
@@ -74,6 +78,12 @@ export default async function SettingsPage() {
   if (!user) redirect("/login?next=/settings");
 
   const isAdmin = user.role === "admin";
+  const capital = isAdmin ? await getCapital(user) : 0;
+  const sections = [
+    ...baseSections.slice(0, 1),
+    ...(isAdmin ? [{ id: "usaha", label: "Usaha", icon: Wallet }] : []),
+    ...baseSections.slice(1),
+  ];
 
   return (
     <div className="mx-auto max-w-[880px]">
@@ -165,6 +175,29 @@ export default async function SettingsPage() {
               </div>
             </div>
           </SectionCard>
+
+          {isAdmin ? (
+            <SectionCard
+              id="usaha"
+              title="Usaha"
+              description="Modal jadi patokan laba berjalan di halaman Wallet & Aset."
+              icon={Wallet}
+            >
+              <div className="flex min-h-14 items-center justify-between gap-3 rounded-sm border border-border px-3.5 py-2.5">
+                <div>
+                  <p className="text-[11px] text-foreground-muted">Modal disetor</p>
+                  <p className="mt-0.5">
+                    <MoneyText value={capital} size="md" />
+                  </p>
+                </div>
+                <CapitalDialog capital={capital} />
+              </div>
+              <Alert tone="info">
+                Laba berjalan = total aset − modal disetor. Pastikan uang keluar untuk
+                biaya dicatat lewat Pengeluaran supaya angkanya tetap akurat.
+              </Alert>
+            </SectionCard>
+          ) : null}
 
           <SectionCard
             id="keamanan"

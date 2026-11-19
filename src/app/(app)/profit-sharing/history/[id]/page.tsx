@@ -52,7 +52,10 @@ export default async function PayoutDetailPage({
 }) {
   const user = await requireRole("admin", "investor");
   const { id } = await params;
-  const payout = await getPayout(user, id);
+  const [payout, allUsers] = await Promise.all([
+    getPayout(user, id),
+    user.role === "admin" ? listUsers(user) : Promise.resolve([]),
+  ]);
   if (!payout) notFound();
 
   const isAdmin = user.role === "admin";
@@ -63,7 +66,7 @@ export default async function PayoutDetailPage({
   const investorPool = categoryTotal(payout.items, "investor_dividend");
   const employeePool = categoryTotal(payout.items, "employee_commission");
   const createdBy = isAdmin
-    ? (await listUsers(user)).find((item) => item.id === payout.createdBy)?.fullName ?? payout.createdBy
+    ? (allUsers.find((item) => item.id === payout.createdBy)?.fullName ?? payout.createdBy)
     : null;
 
   return (

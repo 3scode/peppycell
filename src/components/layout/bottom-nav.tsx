@@ -7,6 +7,7 @@ import { MoreHorizontal, Plus } from "lucide-react";
 import type { SessionUser } from "@/types/domain";
 import { cn } from "@/lib/utils";
 import { MORE_NAV_BY_ROLE, MOBILE_NAV_BY_ROLE } from "@/components/layout/navigation";
+import { LinkPending } from "@/components/layout/link-pending";
 import { Modal } from "@/components/ui/modal";
 
 export function BottomNav({ user }: { user: SessionUser }) {
@@ -25,10 +26,11 @@ export function BottomNav({ user }: { user: SessionUser }) {
         href={href}
         aria-current={active ? "page" : undefined}
         className={cn(
-          "flex min-h-[56px] flex-col items-center justify-center gap-0.5 rounded-sm px-1 text-[10px] font-medium",
+          "relative flex min-h-[56px] flex-col items-center justify-center gap-0.5 overflow-hidden rounded-sm px-1 text-[10px] font-medium",
           active ? "text-primary" : "text-foreground-muted",
         )}
       >
+        <LinkPending />
         <Icon className="size-5" aria-hidden />
         <span className="truncate">{shortLabel ?? label}</span>
       </Link>
@@ -48,8 +50,9 @@ export function BottomNav({ user }: { user: SessionUser }) {
               <Link
                 href="/transactions/new?type=sale"
                 aria-label="Catat penjualan"
-                className="-mt-5 flex size-14 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-overlay transition-transform active:scale-95"
+                className="relative -mt-5 flex size-14 items-center justify-center overflow-hidden rounded-full bg-primary text-primary-foreground shadow-overlay transition-transform active:scale-95"
               >
+                <LinkPending className="bg-primary-foreground/20" />
                 <Plus className="size-6" aria-hidden />
               </Link>
             ) : (
@@ -85,8 +88,9 @@ export function BottomNav({ user }: { user: SessionUser }) {
                 key={item.href}
                 href={item.href}
                 onClick={() => setMoreOpen(false)}
-                className="flex min-h-12 items-center gap-3 rounded-sm px-3 text-sm font-medium hover:bg-surface-muted"
+                className="relative flex min-h-12 items-center gap-3 overflow-hidden rounded-sm px-3 text-sm font-medium hover:bg-surface-muted"
               >
+                <LinkPending />
                 <Icon className="size-5 text-foreground-muted" aria-hidden />
                 {item.label}
               </Link>

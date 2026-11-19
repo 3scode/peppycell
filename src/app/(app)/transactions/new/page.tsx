@@ -23,9 +23,14 @@ export default async function NewTransactionPage({
   const { type } = await searchParams;
   const mode = type === "expense" ? "expense" : "sale";
 
-  const allProducts = (await listProducts(user, { limit: 100 })).rows.filter(
-    (product) => product.isActive,
-  );
+  const [allProductsResult, walletsResult, walletLabel, hasActive] = await Promise.all([
+    listProducts(user, { limit: 100 }),
+    user.role === "admin" ? listWallets(user) : Promise.resolve({ wallets: [] }),
+    getDefaultWalletLabel(),
+    hasActiveWallet(),
+  ]);
+
+  const allProducts = allProductsResult.rows.filter((product) => product.isActive);
   const products = allProducts.map((product) => ({
     id: product.id,
     nama: product.nama,
@@ -35,7 +40,7 @@ export default async function NewTransactionPage({
   }));
   const wallets =
     user.role === "admin"
-      ? (await listWallets(user)).wallets
+      ? walletsResult.wallets
           .filter((wallet) => wallet.isActive)
           .map((wallet) => ({
             id: wallet.id,
@@ -45,7 +50,6 @@ export default async function NewTransactionPage({
           }))
       : null;
 
-  const walletLabel = await getDefaultWalletLabel();
   const operatorRole = user.role === "admin" ? "admin" : "karyawan";
 
   return (
@@ -85,7 +89,7 @@ export default async function NewTransactionPage({
         </div>
       </PageHeader>
 
-      {!await hasActiveWallet() ? (
+      {!hasActive ? (
         <EmptyState
           icon={<WalletIcon className="size-7" />}
           title="Belum ada wallet aktif"

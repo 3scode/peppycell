@@ -4,11 +4,13 @@ import { withAction } from "@/lib/action-wrapper";
 import {
   changePassword,
   setAvatar,
+  updateCapital,
   updateNotification,
   updateProfile,
   updateTheme,
 } from "@/lib/data/repository";
 import {
+  capitalSchema,
   notificationSchema,
   passwordSchema,
   profileSchema,
@@ -35,6 +37,13 @@ export const updateNotificationAction = withAction(
   ["admin", "karyawan", "investor"],
   notificationSchema,
   async (input, { user }): Promise<void> => await updateNotification(user, input.enabled),
+);
+
+export const updateCapitalAction = withAction(
+  "updateCapital",
+  ["admin"],
+  capitalSchema,
+  async (input, { user }): Promise<number> => await updateCapital(user, input.modalAwal),
 );
 
 export const changePasswordAction = withAction(

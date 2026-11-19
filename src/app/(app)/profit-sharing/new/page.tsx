@@ -25,9 +25,13 @@ export default async function NewPayoutPage({
     const start = addDays(closed.start, -7 * index);
     return { start, end: addDays(start, 6) };
   });
-  const wallets = (await listWallets(user)).wallets.filter((wallet) => wallet.isActive);
-  const settings = await getPayoutSettings();
-  const paidStarts = (await listPayouts(user, { limit: 100 })).rows.map((payout) => payout.startDate);
+  const [walletList, settings, payoutRows] = await Promise.all([
+    listWallets(user),
+    getPayoutSettings(),
+    listPayouts(user, { limit: 100 }),
+  ]);
+  const wallets = walletList.wallets.filter((wallet) => wallet.isActive);
+  const paidStarts = payoutRows.rows.map((payout) => payout.startDate);
 
   return (
     <div className="mx-auto max-w-5xl">

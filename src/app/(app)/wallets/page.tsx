@@ -7,7 +7,7 @@ import {
   Wallet as WalletIcon,
 } from "lucide-react";
 import { requireRole } from "@/lib/auth/session";
-import { listWallets } from "@/lib/data/repository";
+import { getCapital, listWallets } from "@/lib/data/repository";
 import { formatDateTimeId } from "@/lib/period";
 import { PageHeader } from "@/components/ui/page-header";
 import { MetricCard } from "@/components/ui/metric-card";
@@ -38,7 +38,11 @@ function typeLabel(tipe: Wallet["tipe"]) {
 export default async function WalletsPage() {
   const user = await requireRole("admin", "investor");
   const isAdmin = user.role === "admin";
-  const { wallets, totalAssets } = await listWallets(user);
+  const [{ wallets, totalAssets }, capital] = await Promise.all([
+    listWallets(user),
+    getCapital(user),
+  ]);
+  const runningProfit = totalAssets - capital;
   const activeWallets = wallets.filter((wallet) => wallet.isActive);
   const inactiveWallets = wallets.filter((wallet) => !wallet.isActive);
 
@@ -62,7 +66,13 @@ export default async function WalletsPage() {
             label="Total aset"
             value={totalAssets}
             icon={<WalletIcon className="size-5" />}
-            hint={`${activeWallets.length} wallet aktif${inactiveWallets.length > 0 ? ` · ${inactiveWallets.length} nonaktif` : ""}`}
+            hint={
+              <>
+                {activeWallets.length} wallet aktif
+                {inactiveWallets.length > 0 ? ` · ${inactiveWallets.length} nonaktif` : ""}
+                <span className="mt-1 block">Saldo semua wallet — bukan laba bersih.</span>
+              </>
+            }
             action={
               isAdmin ? (
                 wallets.length === 0 ? (
@@ -79,13 +89,52 @@ export default async function WalletsPage() {
                 )
               ) : null
             }
-          />
+          >
+            {capital > 0 ? (
+              <dl className="grid grid-cols-2 gap-3 border-t border-border/70 pt-3">
+                <div>
+                  <dt className="text-[10px] font-semibold uppercase tracking-wide text-foreground-muted">
+                    Modal disetor
+                  </dt>
+                  <dd className="mt-0.5">
+                    <MoneyText value={capital} size="sm" tone="muted" />
+                  </dd>
+                </div>
+                <div>
+                  <dt className="text-[10px] font-semibold uppercase tracking-wide text-foreground-muted">
+                    Laba berjalan
+                  </dt>
+                  <dd className="mt-0.5">
+                    <MoneyText
+                      value={runningProfit}
+                      size="sm"
+                      signed
+                      tone={runningProfit < 0 ? "expense" : "income"}
+                    />
+                  </dd>
+                </div>
+              </dl>
+            ) : (
+              <p className="border-t border-border/70 pt-3 text-xs text-foreground-muted">
+                Modal belum diatur.{" "}
+                {isAdmin ? (
+                  <Link
+                    href="/settings#usaha"
+                    className="font-semibold text-primary hover:underline"
+                  >
+                    Atur modal usaha
+                  </Link>
+                ) : null}
+              </p>
+            )}
+          </MetricCard>
         </div>
         <aside className="lg:col-span-4">
-          <Alert tone="info" title="Kenapa saldo harus akurat?">
-            Laba mingguan dihitung dari margin penjualan, bukan dari saldo wallet. Tetap
-            sesuaikan saldo jika ada selisih kas fisik agar aset yang dilaporkan sesuai
-            kenyataan.
+          <Alert tone="info" title="Aset ≠ laba">
+            Total aset = modal + laba berjalan. Laba berjalan di halaman ini dihitung dari
+            total aset − modal disetor. Dashboard menghitung laba dari margin penjualan −
+            beban, jadi angkanya bisa beda kalau ada prive atau penyesuaian saldo. Catat uang
+            keluar untuk biaya lewat menu Pengeluaran supaya keduanya akurat.
           </Alert>
         </aside>
       </div>

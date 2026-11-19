@@ -12,6 +12,7 @@ export function MetricCard({
   hero = false,
   className,
   action,
+  children,
 }: {
   label: string;
   value: number | string;
@@ -22,6 +23,7 @@ export function MetricCard({
   hero?: boolean;
   className?: string;
   action?: ReactNode;
+  children?: ReactNode;
 }) {
   return (
     <div
@@ -68,6 +70,7 @@ export function MetricCard({
         )}
       </div>
       {hint ? <div className="mt-1 text-xs text-foreground-muted">{hint}</div> : null}
+      {children ? <div className="mt-3">{children}</div> : null}
       {action ? <div className="mt-3">{action}</div> : null}
     </div>
   );

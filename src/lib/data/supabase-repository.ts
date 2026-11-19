@@ -282,16 +282,20 @@ async function mapTransactions(
   rows: Row[],
   includeCost: boolean,
 ): Promise<TransactionDetail[]> {
-  const maps = await lookups(supabase);
+  const ids = rows.map((row) => text(row.id));
+  // Lookup nama (wallet/produk/user) dan snapshot biaya saling independen.
+  const costsPromise =
+    includeCost && ids.length > 0
+      ? supabase
+          .from("transaction_costs")
+          .select("transaction_id,unit_cost,margin,source_cost")
+          .in("transaction_id", ids)
+      : null;
+  const [maps, costResult] = await Promise.all([lookups(supabase), costsPromise]);
   const costMap = new Map<string, Row>();
-  if (includeCost && rows.length > 0) {
-    const ids = rows.map((row) => text(row.id));
-    const { data, error } = await supabase
-      .from("transaction_costs")
-      .select("transaction_id,unit_cost,margin,source_cost")
-      .in("transaction_id", ids);
-    if (error) raise(error);
-    for (const row of (data ?? []) as Row[]) costMap.set(text(row.transaction_id), row);
+  if (costResult) {
+    if (costResult.error) raise(costResult.error);
+    for (const row of (costResult.data ?? []) as Row[]) costMap.set(text(row.transaction_id), row);
   }
   return rows.map((row) => {
     const detail = mapTransaction(row, maps, costMap.get(text(row.id)));
@@ -434,7 +438,15 @@ async function listProductPrices(productIds?: string[]): Promise<ProductPrice[]>
 
 async function listProducts(
   user: SessionUser,
-  filters: { q?: string; operator?: string; page?: number; limit?: number; archived?: boolean } = {},
+  filters: {
+    q?: string;
+    operator?: string;
+    page?: number;
+    limit?: number;
+    archived?: boolean;
+    /** Set false untuk dropdown/opsi yang tidak butuh harga beli (admin). */
+    includeCosts?: boolean;
+  } = {},
 ): Promise<Paginated<Product>> {
   const supabase = await createSupabaseServerClient();
   const page = Math.max(1, filters.page ?? 1);
@@ -451,13 +463,28 @@ async function listProducts(
   }
   if (filters.operator) query = query.eq("operator", filters.operator);
   query = query.order("nama_produk", { ascending: true }).range((page - 1) * limit, page * limit - 1);
-  const { data, error, count } = await query;
+
+  // Harga beli hanya untuk admin. Ambil seluruh tabel cost bersamaan dengan
+  // query produk (tabelnya 1 baris per produk) supaya tidak ada round-trip
+  // kedua yang menunggu id produk.
+  const withCosts = user.role === "admin" && filters.includeCosts !== false;
+  const costsQuery = withCosts
+    ? supabase.from("product_costs").select("product_id,harga_beli")
+    : null;
+  const [productsResult, costsResult] = await Promise.all([query, costsQuery]);
+  const { data, error, count } = productsResult;
   if (error) raise(error);
+  const costMap = new Map<string, number>();
+  if (costsResult) {
+    if (costsResult.error) raise(costsResult.error);
+    for (const row of (costsResult.data ?? []) as Row[]) {
+      costMap.set(text(row.product_id), num(row.harga_beli));
+    }
+  }
   const rows = (data ?? []) as Row[];
-  const costMap = user.role === "admin" ? await loadProductCosts(supabase, rows.map((row) => text(row.id))) : new Map();
   const total = count ?? rows.length;
   return {
-    rows: rows.map((row) => mapProduct(row, user.role === "admin" ? costMap.get(text(row.id)) : undefined)),
+    rows: rows.map((row) => mapProduct(row, withCosts ? costMap.get(text(row.id)) : undefined)),
     total,
     page,
     limit,
@@ -745,6 +772,31 @@ async function getPayoutSettings(): Promise<PayoutSettings> {
   return mapSettings(data as Row);
 }
 
+async function getCapital(user: SessionUser): Promise<number> {
+  if (user.role !== "admin" && user.role !== "investor") return 0;
+  // Investor tidak punya akses langsung ke payout_settings (RLS admin-only),
+  // jadi baca lewat admin client seperti listWallets.
+  const supabase = (user.role === "investor" ? supabaseAdmin : await createSupabaseServerClient()) as Supabase;
+  const { data, error } = await supabase
+    .from("payout_settings")
+    .select("modal_disetor")
+    .eq("id", 1)
+    .maybeSingle();
+  if (error) raise(error);
+  return num((data as Row | null)?.modal_disetor);
+}
+
+async function updateCapital(user: SessionUser, amount: number): Promise<number> {
+  if (user.role !== "admin") throw new AppError("FORBIDDEN", "Hanya admin.");
+  if (!Number.isInteger(amount) || amount < 0) {
+    throw new AppError("VALIDATION_ERROR", "Modal harus bilangan bulat ≥ 0.");
+  }
+  const supabase = await createSupabaseServerClient();
+  const { error } = await supabase.rpc("update_modal_disetor", { p_modal: amount });
+  if (error) raise(error);
+  return amount;
+}
+
 async function updatePayoutSettings(user: SessionUser, input: PayoutSettings): Promise<PayoutSettings> {
   if (user.role !== "admin") throw new AppError("FORBIDDEN", "Hanya admin.");
   const sum = input.retainedPct + input.adminPct + input.investorPct + input.employeePct;
@@ -908,6 +960,8 @@ async function executePayout(
 
 async function getDashboardMetrics(user: SessionUser, start?: string, end?: string): Promise<DashboardMetrics> {
   const supabase = await createSupabaseServerClient();
+  // Mulai query series lebih dulu agar berjalan paralel dengan RPC metrik utama.
+  const series30Promise = supabase.rpc("dashboard_series", { p_days: 30 });
   const { data, error } = await supabase.rpc("get_dashboard_metrics", {
     p_start: start ?? null,
     p_end: end ?? null,
@@ -934,10 +988,7 @@ async function getDashboardMetrics(user: SessionUser, start?: string, end?: stri
     expense: num(item.expense),
     profit: num(item.profit),
   }));
-  const [series7Result, series30Result] = await Promise.all([
-    supabase.rpc("dashboard_series", { p_days: 7 }),
-    supabase.rpc("dashboard_series", { p_days: 30 }),
-  ]);
+  const series30Result = await series30Promise;
   const mapSeries = (value: unknown) =>
     ((value ?? []) as Row[]).map((item) => ({
       date: text(item.date),
@@ -945,8 +996,10 @@ async function getDashboardMetrics(user: SessionUser, start?: string, end?: stri
       expense: num(item.expense),
       profit: num(item.profit),
     }));
-  const series7 = series7Result.error ? series : mapSeries(series7Result.data);
-  const series30 = series30Result.error ? series7 : mapSeries(series30Result.data);
+  // Series 7 hari adalah bagian akhir dari series 30 hari — cukup satu request.
+  const series30Rows = series30Result.error ? [] : mapSeries(series30Result.data);
+  const series30 = series30Rows.length > 0 ? series30Rows : series;
+  const series7 = series30.length > 7 ? series30.slice(-7) : series30;
 
   if (user.role === "karyawan") {
     const mySeries = ((row.my_series_7d ?? []) as Row[]).map((item) => ({
@@ -1028,6 +1081,21 @@ async function getDashboardMetrics(user: SessionUser, start?: string, end?: stri
     },
     payoutReadyNetProfit: num(row.payout_ready_net_profit),
   };
+}
+
+/**
+ * Hanya butuh laba bersih satu periode (mis. pembanding minggu lalu).
+ * Memakai RPC yang sama dengan getDashboardMetrics tetapi tanpa series,
+ * sehingga menghemat dua request tambahan per pemuatan dashboard.
+ */
+async function getPeriodNetProfit(user: SessionUser, start: string, end: string): Promise<number> {
+  const supabase = await createSupabaseServerClient();
+  const { data, error } = await supabase.rpc("get_dashboard_metrics", {
+    p_start: start,
+    p_end: end,
+  });
+  if (error) raise(error);
+  return num(((data ?? {}) as Row).net_profit);
 }
 
 async function listUsers(user: SessionUser): Promise<UserSummary[]> {
@@ -2023,11 +2091,14 @@ export const supabaseRepository: DataRepository = {
   getWalletDetail,
   updatePayoutSettings,
   getPayoutSettings,
+  getCapital,
+  updateCapital,
   previewPayout,
   listPayouts,
   getPayout,
   executePayout,
   getDashboardMetrics,
+  getPeriodNetProfit,
   listUsers,
   createUser,
   updateUser,

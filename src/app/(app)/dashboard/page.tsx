@@ -16,6 +16,7 @@ import {
 import { requireUser } from "@/lib/auth/session";
 import {
   getDashboardMetrics,
+  getPeriodNetProfit,
   getPayoutSettings,
   listPayouts,
 } from "@/lib/data/repository";
@@ -71,17 +72,22 @@ function txIcon(type: "income" | "expense" | "transfer" | "payout") {
 
 export default async function DashboardPage() {
   const user = await requireUser();
-  const metrics = await getDashboardMetrics(user);
   const prevPeriod = weekBounds(addDays(weekBounds(todayWib()).start, -7));
-  const previous = await getDashboardMetrics(user, prevPeriod.start, prevPeriod.end);
-  const delta = deltaLabel(metrics.netProfit, previous.netProfit);
+
+  // Jalankan semua query independen sekaligus. Sebelumnya 4 request berjalan
+  // berurutan sehingga latensi Supabase (±0,3–1 dtk/query) menumpuk.
+  const settingsPromise: Promise<PayoutSettings | null> =
+    user.role === "admin" ? getPayoutSettings() : Promise.resolve(null);
+  const [metrics, previousNetProfit, settings, payoutHistoryResult] = await Promise.all([
+    getDashboardMetrics(user),
+    getPeriodNetProfit(user, prevPeriod.start, prevPeriod.end),
+    settingsPromise,
+    user.role === "investor" ? listPayouts(user, { limit: 3 }) : Promise.resolve({ rows: [] }),
+  ]);
+
+  const delta = deltaLabel(metrics.netProfit, previousNetProfit);
   const firstName = user.fullName.split(" ")[0] ?? user.fullName;
-  const settings: PayoutSettings | null =
-    user.role === "admin" ? await getPayoutSettings() : null;
-  const payoutHistory =
-    user.role === "investor"
-      ? (await listPayouts(user, { limit: 3 })).rows
-      : [];
+  const payoutHistory = payoutHistoryResult.rows;
 
   return (
     <div className="space-y-5">

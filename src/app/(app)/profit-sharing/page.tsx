@@ -49,13 +49,17 @@ export default async function ProfitSharingPage() {
   const user = await requireRole("admin", "investor");
   const current = weekBounds(todayWib());
   const closed = lastClosedWeek();
-  const metrics = await getDashboardMetrics(user);
   const isAdmin = user.role === "admin";
-  const settings = isAdmin ? await getPayoutSettings() : null;
-  const preview = isAdmin
-    ? getDashboardPreview(metrics.netProfit, settings!)
-    : null;
-  const history = await listPayouts(user, { limit: 5 });
+  const settingsPromise: Promise<PayoutSettings | null> = isAdmin
+    ? getPayoutSettings()
+    : Promise.resolve(null);
+  const [metrics, settings, history] = await Promise.all([
+    getDashboardMetrics(user),
+    settingsPromise,
+    listPayouts(user, { limit: 5 }),
+  ]);
+  const preview =
+    isAdmin && settings ? getDashboardPreview(metrics.netProfit, settings) : null;
   const progress = periodDayProgress(current.start, current.end);
 
   return (

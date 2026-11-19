@@ -49,7 +49,7 @@ export default async function VouchersPage({ searchParams }: { searchParams: Pro
   const [result, summary, productRows, wallets] = await Promise.all([
     listVouchers(user, { status, productId, q, page, limit }),
     getVoucherSummary(user),
-    listProducts(user, { limit: 100 }),
+    listProducts(user, { limit: 100, includeCosts: false }),
     listWalletOptions(user),
   ]);
 

@@ -14,6 +14,14 @@ export const notificationSchema = z.object({
   enabled: z.boolean(),
 });
 
+export const capitalSchema = z.object({
+  modalAwal: z
+    .number({ error: "Modal tidak valid." })
+    .int("Modal harus bilangan bulat.")
+    .min(0, "Modal tidak boleh negatif.")
+    .max(999_999_999_999, "Modal terlalu besar."),
+});
+
 export const passwordSchema = z
   .object({
     currentPassword: z.string().min(1, "Password lama wajib diisi."),
